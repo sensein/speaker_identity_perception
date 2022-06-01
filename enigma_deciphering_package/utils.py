@@ -1,9 +1,11 @@
 import re
 import os
 import math
+import pickle
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+from glob import glob
 
 import yaml
 from pathlib import Path
@@ -14,6 +16,9 @@ import plotly.express as px
 
 import torch
 import torchaudio
+import tensorflow_hub as hub
+
+from transformers import Wav2Vec2Model, HubertModel
 
 import librosa
 import serab_byols
@@ -23,16 +28,17 @@ import pacmap
 from umap import UMAP
 
 import scipy
-from scipy.spatial.distance import pdist
+from scipy.spatial.distance import pdist, squareform, directed_hausdorff
+
+from sklearn.svm import SVC
 from sklearn.manifold import TSNE
 from sklearn.decomposition import PCA
-from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
 
-from settings import *
+from settings import _MODELS_WEIGHTS
 
 ##################################### Config file processing ########################################
 
@@ -57,7 +63,24 @@ def load_yaml_config(path_to_config):
     cfg = EasyDict(yaml_contents)
     return cfg
 
-##################################### Data Loading and Audio Preprocessing Functions ########################################
+def build_experiment(exp_config):
+    """Create a directory to store experiment's results"""
+    #create a directory with the experiment name (datasetname_modelname)
+    os.makedirs(f'{exp_config.dataset_name}', exist_ok=True)
+    return sorted(glob(exp_config.dataset_path))
+
+def extract_metadata(exp_config, audio_files):
+    metadata = {}
+    metadata['AudioNames'] = np.array(list(map(lambda x: os.path.basename(x), audio_files)))
+    labels_list = split_string(exp_config.name_convention, ['_', '\.'])
+    for idx, label in enumerate(labels_list):
+        if label != labels_list[-1]:
+            metadata[label] = np.array(list(map(lambda x: split_string(os.path.basename(x), ['_', '\.'])[idx], audio_files)))
+        else:
+            audio_format = label
+    return pd.DataFrame(metadata), audio_format
+
+##################################### Data Loading and Preprocessing Functions ########################################
 
 def stereo_to_mono_audio(audio):
     """Convert stereo audio (2 channels) to mono audio (one channel) by averaging the two channels"""
@@ -90,9 +113,7 @@ def chunking_audio(audio, file, chunk_dur, sr, save_path, speaker_id, audio_form
     try:
         for i in range(0, noSections):
             temp = audio[i*chunk_dur*sr:i*chunk_dur*sr + chunk_dur*sr]
-            sf.write(f'{save_path}/{speaker_id}/{os.path.basename(file)}_{str(i).zfill(3)}.{audio_format}', temp, sr)
-            audio_tensor_list.append(torch.from_numpy(temp))
-        return audio_tensor_list
+            sf.write(f'{save_path}/{speaker_id}/{Path(file).stem}_{str(i).zfill(3)}.{audio_format}', temp, sr)
     except:
         print(f'The number of seconds in audio {file} is smaller than the splitting criteria ({chunk_dur} sec)')
 
@@ -111,12 +132,13 @@ def preprocess_audio_files(files_paths, speaker_ids, chunk_dur=3, resampling_rat
         Sample rate required for resampling
     save_path : str
         Path for saving the preprocessed audio chunks
+    audio_format : str
+        The audio extention (e.g. wav/flac/mp3)
     Returns
     -------
-    audio_tensor_list : list
-        list of torch tensors of preprocessed audios
+    audio_path : str
+        path to audio files
     """
-    audio_tensor_list = []
     save_path = f'{save_path}_dur{chunk_dur}sec'
     for idx, file in enumerate(tqdm(files_paths, desc=f'Preprocessing Audio Files...', total=len(files_paths))):
         # Read audio file
@@ -127,7 +149,7 @@ def preprocess_audio_files(files_paths, speaker_ids, chunk_dur=3, resampling_rat
         if audio.ndim == 2:
             audio = stereo_to_mono_audio(audio)
         
-        # Convert to float if necessary
+        # Convert to float if needed
         float_audio = int_to_float_audio(audio)
         
         # Resample if needed
@@ -135,35 +157,36 @@ def preprocess_audio_files(files_paths, speaker_ids, chunk_dur=3, resampling_rat
             float_audio = resample_audio(audio, orig_sr, resampling_rate)
         
         # Split audio into chunks
-        audio_tensor_list += chunking_audio(float_audio, file, chunk_dur, resampling_rate, save_path, speaker_ids[idx], audio_format)
-    return audio_tensor_list
+        chunking_audio(float_audio, file, chunk_dur, resampling_rate, save_path, speaker_ids[idx], audio_format)
+    audio_path = f'{save_path}/*/*.{audio_format}'
+    return audio_path
 
-def load_dataset(files, preprocessing=False, speaker_ids=[], chunk_dur=3, resampling_rate=16000, save_path='./preprocessed_audios', audio_format='wav'):
+def load_dataset(files, cfg, speaker_ids=[], audio_format='wav', device='cuda'):
     """Load audio dataset and read the audio files as list of torch tensors.
 
     Parameters
     ----------
-    files_paths : str
+    files : str
         Path for the audio files
-    preprocessing : bool
-        Apply preprocessing to audio files or not
     speaker_ids : list
         List of speakers id
-    chunk_dur : int
-        duration of audio samples after chunking
     resampling rate : int
         Sample rate required for resampling
-    save_path : str
-        Path for saving the preprocessed audio chunks
+    audio_format : str
+        Name of audio extension
     Returns
     -------
     audio_tensor_list : list
         list of torch tensors of preprocessed audios
+    files : list
+        list of audios paths
     """
-    audio_tensor_list = []
-    if preprocessing:
-        return preprocess_audio_files(files, speaker_ids, chunk_dur, resampling_rate, save_path, audio_format)
+    audio_tensor_file = f'{cfg.dataset_name}/audios_tensor_list.pkl'
+    if os.path.isfile(audio_tensor_file):
+        print(f'Audio Tensors are already saved for {cfg.dataset_name}')
+        return pickle.load(open(audio_tensor_file, "rb"))
     else:
+        audio_tensor_list = []
         for file in tqdm(files, desc=f'Loading Audio Files...', total=len(files)):
             # Read audio file
             audio, orig_sr = sf.read(file)
@@ -181,15 +204,134 @@ def load_dataset(files, preprocessing=False, speaker_ids=[], chunk_dur=3, resamp
                 float_audio = audio
 
             # Resample if needed
-            if orig_sr != resampling_rate:
+            if orig_sr != cfg.resampling_rate:
                 float_audio = librosa.core.resample(
                     float_audio,
                     orig_sr=orig_sr,
-                    target_sr=resampling_rate,
+                    target_sr=cfg.resampling_rate,
                     res_type='kaiser_best'
                 )
-            audio_tensor_list.append(torch.from_numpy(float_audio))
-    return audio_tensor_list
+            audio_tensor_list.append(torch.from_numpy(float_audio).to(torch.device(device)))
+        with open(audio_tensor_file, 'wb') as f:
+            pickle.dump(audio_tensor_list, f)
+        return audio_tensor_list
+
+##################################### Embeddings Generation Functions ########################################
+
+def load_model(model_name, weights_file):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if 'BYOL-' in model_name:
+        model = serab_byols.load_model(weights_file, model_name.split('_')[-1]).to(device)
+    elif model_name == 'HuBERT':
+        model = HubertModel.from_pretrained(weights_file, cache_dir='/om2/user/gelbanna/huggingface/').to(device)
+    elif model_name == 'Wav2Vec2':
+        model = Wav2Vec2Model.from_pretrained(weights_file, cache_dir='/om2/user/gelbanna/huggingface/').to(device)
+    else:
+        model = hub.load(weights_file)
+    return model
+
+def generate_speech_embeddings(audio_tensor_list, model, model_name, cfg):
+    model_dir = f'{cfg.dataset_name}/{model_name}'
+    os.makedirs(model_dir, exist_ok=True)
+    emb_file_name = f'{model_dir}/embeddings.npy'
+    if os.path.isfile(emb_file_name):
+        print(f'{model_name} embeddings are already saved for {cfg.dataset_name}')
+        return np.load(emb_file_name)
+    else:
+        # Generate speech embeddings
+        if 'BYOL-' in model_name:
+            embeddings = serab_byols.get_scene_embeddings(audio_tensor_list, model)
+            # Convert torch tensor to numpy
+            embeddings = embeddings.cpu().detach().numpy()
+        else:
+            embeddings = []
+            for audio in tqdm(audio_tensor_list, desc=f'Generating {model_name} Embeddings...'):
+                if model_name == 'TRILL':
+                    embedding = np.mean(model(audio.cpu().detach().numpy(), sample_rate=cfg.resampling_rate)['layer19'], axis=0)
+
+                elif model_name == 'VGGish':
+                    embedding = np.mean(model(audio.cpu().detach().numpy()), axis=0)
+
+                elif model_name == 'YAMNET':
+                    _, embedding, _ = model(audio.cpu().detach().numpy())
+                    embedding = np.mean(embedding, axis=0)
+                else:
+                    model.eval()
+                    with torch.no_grad():
+                        embedding = model(audio.unsqueeze(0)).last_hidden_state.mean(1)
+                        embedding = np.squeeze(embedding.cpu().detach().numpy())
+                embeddings.append(embedding)
+            embeddings = np.array(embeddings)
+        np.save(emb_file_name, embeddings)
+        return embeddings
+
+def extract_models(audio_tensor_list, cfg):
+    embeddings = {}
+    for model_name, weights_file in _MODELS_WEIGHTS.items():
+        print(f'Load {model_name} Model')
+        model = load_model(model_name, weights_file)
+        embeddings[model_name] = generate_speech_embeddings(audio_tensor_list, model, model_name, cfg)
+        print(embeddings[model_name].shape)
+    return embeddings
+
+##################################### High Dimension Analysis Functions ######################################## 
+ 
+def compute_hausdorff_dist(u,v):
+    return directed_hausdorff(np.expand_dims(u, axis=0),np.expand_dims(v, axis=0))
+
+def compute_distances(metadata_df, embeddings_dict, dataset_name, dist_metric, columns_list):
+    distance_df_dict = {}
+    if dist_metric == 'hausdorff':
+        dist_metric = compute_hausdorff_dist
+    for model_name, embeddings in embeddings_dict.items():
+        long_form_df_path = f'{dataset_name}/{model_name}/longform_{dist_metric}_distance.csv'
+        if os.path.isfile(long_form_df_path):
+            print(f'DF for the {dist_metric} distances using {model_name} already exist!')
+            distance_df_dict[model_name] = pd.read_csv(long_form_df_path)
+        else:
+            print(f'Computing {dist_metric} distances between {model_name} embeddings...')
+            #add embeddings to metadata dataframe
+            df_embeddings = pd.DataFrame(embeddings)
+            df_embeddings = df_embeddings.add_prefix('Embeddings_')
+            df = pd.concat([metadata_df, df_embeddings], axis=1)
+            df.to_csv(f'{dataset_name}/{model_name}/df_embeddings.csv')
+
+            #create distance-based dataframe between all data samples in a square form
+            pairwise = pd.DataFrame(
+                squareform(pdist(df_embeddings, lambda u, v: compute_hausdorff_dist(u, v))),
+                columns = df[columns_list],
+                index = df[columns_list]
+            )
+            pairwise.to_csv(f'{dataset_name}/{model_name}/pairwise_{dist_metric}_distance.csv')
+
+            #move from square form DF to long form DF
+            long_form = pairwise.unstack()
+            #rename columns and turn into a dataframe
+            long_form.index.rename(['Sample_1', 'Sample_2'], inplace=True)
+            long_form = long_form.to_frame('Distance').reset_index()
+
+            #expand Sample 1 & 2 to meta data columns
+            rename_dict = dict(zip(list(range(len(list(metadata_df.columns)))), list(metadata_df.columns)))
+            sample1_df = pd.DataFrame(long_form['Sample_1'].tolist(),index=long_form.index).rename(columns=rename_dict).add_suffix('_1')
+            sample2_df = pd.DataFrame(long_form['Sample_2'].tolist(),index=long_form.index).rename(columns=rename_dict).add_suffix('_2')
+            long_form = pd.concat([sample1_df, sample2_df, long_form['Distance']], axis=1)
+
+            #remove the distances computed between same samples (distance = 0)
+            long_form = long_form.loc[long_form['AudioNames_1'] != long_form['AudioNames_2']]
+            long_form.to_csv(long_form_df_path)
+            distance_df_dict[model_name] = long_form
+    return distance_df_dict
+
+def process_distances(dict_df, cfg):
+    norm_dist_df_dict = {}
+    for model_name, long_form in dict_df.items():
+        #remove distances computed between different speakers and different labels
+        long_form = long_form.loc[(long_form['Label_1']==long_form['Label_2']) & (long_form['ID_1']==long_form['ID_2'])]
+        #standardize distances to be comparable with other models
+        long_form['Distance'] = (long_form['Distance']-long_form['Distance'].mean())/long_form['Distance'].std()
+        long_form.to_csv(f'{cfg.dataset_name}/{model_name}/longform_cosine_norm_distance_perspeakerlabel.csv')
+        norm_dist_df_dict[model_name] = long_form
+    return norm_dist_df_dict
 
 ##################################### Dimensionality Reduction Functions ########################################
 
@@ -292,42 +434,6 @@ def visualize_embeddings(df, label_name, metrics=[], axis=[], acoustic_param={},
                      c=df[label_name], s=20, cmap="Spectral")
         return points
 
-##################################### Embeddings Generation Functions ########################################
-
-def load_model(model_name, device):
-    if model_name == 'byols_cnn':
-        model = serab_byols.load_model(checkpoint_path, model_name)
-        state_dict = torch.load(checkpoint_path, map_location=device)
-        model.load_state_dict(state_dict)
-        model.to(device)
-        # Disable parameter tuning
-        model.eval()
-        for param in model.parameters():
-            param.requires_grad = False
-    else:
-        model = hub.load(_MODELS_WEIGHTS[model_name])
-    return model
-        
-def generate_speech_embeddings(audio_tensor_list, model, model_name):
-    # Generate speech embeddings
-    if model_name == 'BYOL-S':
-        embeddings = serab_byols.get_scene_embeddings(audio_tensor_list, model)
-        # Convert torch tensor to numpy
-        embeddings = embeddings.cpu().detach().numpy()
-    else:
-        for audio in tqdm(audio_tensor_list):
-            if model_name == 'trill':
-                embedding = np.mean(model(audio, sample_rate=_REQUIRED_SAMPLE_RATE)['layer19'], axis=0, keepdims=True)
-
-            elif model_name == 'vggish':
-                embedding = np.mean(model(audio), axis=0, keepdims=True)
-
-            elif model_name == 'yamnet':
-                _, embedding, _ = model(audio)
-                embedding = np.mean(embedding, axis=0, keepdims=True)
-        
-    return embeddings
-
 ##################################### DF Processing and Stats Functions ########################################
     
 def explode(df, lst_cols, fill_value=''):
@@ -412,7 +518,7 @@ def get_sklearn_models(seed=42):
 def eval_features_importance(clf_name, estimator):
     """
     Extract the features ordered based on their importance to the classifier
-    
+​
     Returns
     ----------
     Features_importances: Pandas DataFrame
