@@ -18,7 +18,8 @@ from reducer_tuner_settings import _hyperparams_grid, _optimize_function, _knn, 
 class ReducerTuner():
     """Tuner for dimensionality reduction methods.
 
-    Implements grid-search across hyperparameters for each dimensionality reduction method (following sklearn) preset in the seetings script.
+    Implements grid-search across hyperparameters for each dimensionality reduction method preset in the settings script.
+    NOTE: any method added in the settings script should follow sklearn implementation.
     Tunes reduced dimensions by optimizing local and global structure metrics.
     Saves tuned results for each method as a pandas dataframe.
     """
