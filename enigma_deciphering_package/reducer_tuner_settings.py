@@ -8,7 +8,7 @@ _hyperparams_grid = {
         
                         'tSNE' : {
                             'perplexity': np.arange(5,155,10),
-                            # 'reducer__init': ['random', 'pca']
+                            'init': ['random', 'pca']
                             },
                         
                         'UMAP' : {

@@ -74,10 +74,9 @@ class ReducerTuner():
             df.loc[:, (name, 'Local', 'Dim2')] = local_embeddings[:,1]
             df.loc[:, (name, 'Global', 'Dim1')] = global_embeddings[:,0]
             df.loc[:, (name, 'Global', 'Dim2')] = global_embeddings[:,1]
-        if not metadata:
-            temp_df = metadata_df.copy()
-            temp_df.columns = pd.MultiIndex.from_tuples(map(lambda x: (x, '', ''), temp_df.columns))
-            df = pd.concat([df, temp_df], axis=1)
+        temp_df = metadata_df.copy()
+        temp_df.columns = pd.MultiIndex.from_tuples(map(lambda x: (x, '', ''), temp_df.columns))
+        df = pd.concat([df, temp_df], axis=1)
         df.to_csv(save_path)
 
     def tune_reducer(self, embeddings, metadata=None, save_results = True, save_path='./'):
