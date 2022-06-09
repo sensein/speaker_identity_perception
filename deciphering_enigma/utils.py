@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from glob import glob
+from collections import Counter
 
 import yaml
 from pathlib import Path
@@ -27,7 +28,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
 
-from settings import _MODELS_WEIGHTS
+from .settings import _MODELS_WEIGHTS
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -58,7 +59,7 @@ def load_yaml_config(path_to_config):
 def build_experiment(exp_config):
     """Create a directory to store experiment's results"""
     #create a directory with the experiment name (datasetname_modelname)
-    os.makedirs(f'{exp_config.dataset_name}', exist_ok=True)
+    os.makedirs(f'../{exp_config.dataset_name}', exist_ok=True)
     return sorted(glob(exp_config.dataset_path))
 
 def extract_metadata(exp_config, audio_files):
@@ -108,6 +109,19 @@ def chunking_audio(audio, file, chunk_dur, sr, save_path, speaker_id, audio_form
             sf.write(f'{save_path}/{speaker_id}/{Path(file).stem}_{str(i).zfill(3)}.{audio_format}', temp, sr)
     except:
         print(f'The number of seconds in audio {file} is smaller than the splitting criteria ({chunk_dur} sec)')
+
+def balance_data():
+    files = []
+    wav_dirs = glob('../datasets/scripted_spont_dataset/preprocessed_audios_dur3sec/*')
+    for wav_dir in wav_dirs:
+        wav_files = np.array(sorted(glob(f'{wav_dir}/*.wav')))
+        ids = np.array(list(map(lambda x: os.path.basename(x).split('_')[0], wav_files)))
+        labels = np.array(list(map(lambda x: os.path.basename(x).split('_')[3], wav_files)))
+        min_label = min(Counter(labels).values())
+        script_files = [file for file in wav_files if os.path.basename(file).split('_')[3] == 'script'][:min_label]
+        spon_files = [file for file in wav_files if os.path.basename(file).split('_')[3] == 'spon'][:min_label]
+        files += spon_files + script_files
+    return files
 
 def preprocess_audio_files(files_paths, speaker_ids, chunk_dur=3, resampling_rate=16000, save_path='./preprocessed_audios', audio_format='wav'):
     """Preprocess audio files by convert stereo audio to mono, resample, break audio to smaller chunks and convert audio array to list of torch tesnors.
@@ -173,7 +187,7 @@ def load_dataset(files, cfg, speaker_ids=[], audio_format='wav', device='cuda'):
     files : list
         list of audios paths
     """
-    audio_tensor_file = f'{cfg.dataset_name}/audios_tensor_list.pkl'
+    audio_tensor_file = f'../{cfg.dataset_name}/audios_tensor_list.pkl'
     if os.path.isfile(audio_tensor_file):
         print(f'Audio Tensors are already saved for {cfg.dataset_name}')
         return pickle.load(open(audio_tensor_file, "rb"))
@@ -227,7 +241,7 @@ def load_model(model_name, weights_file):
     return model
 
 def generate_speech_embeddings(audio_tensor_list, model, model_name, cfg):
-    model_dir = f'{cfg.dataset_name}/{model_name}'
+    model_dir = f'../{cfg.dataset_name}/{model_name}'
     os.makedirs(model_dir, exist_ok=True)
     emb_file_name = f'{model_dir}/embeddings.npy'
     if os.path.isfile(emb_file_name):
@@ -276,7 +290,7 @@ def extract_models(audio_tensor_list, cfg):
     embeddings = {}
     for model_name, weights_file in _MODELS_WEIGHTS.items():
         print(f'Load {model_name} Model')
-        model_dir = f'{cfg.dataset_name}/{model_name}'
+        model_dir = f'../{cfg.dataset_name}/{model_name}'
         emb_file_name = f'{model_dir}/embeddings.npy'
         if os.path.isfile(emb_file_name):
             print(f'{model_name} embeddings are already saved for {cfg.dataset_name}')
@@ -292,12 +306,26 @@ def extract_models(audio_tensor_list, cfg):
 def compute_hausdorff_dist(u,v):
     return directed_hausdorff(np.expand_dims(u, axis=0),np.expand_dims(v, axis=0))
 
+def process_distances(long_form, dataset_name):
+    norm_dist_df_dict = {}
+    #remove distances computed between different speakers and different labels
+    long_form = long_form.loc[(long_form['Label_1']==long_form['Label_2']) & (long_form['ID_1']==long_form['ID_2'])]
+    #remove duplicate distances
+    long_form = long_form.drop_duplicates(subset=['Distance'])
+    #standardize distances within speaker
+    long_form['Distance'] = long_form.groupby(['ID_1'])['Distance'].transform(lambda x: (x - x.mean()) / x.std())
+    #remove distances above 99% percentile
+    long_form = long_form[long_form.Distance < np.percentile(long_form.Distance,99)]
+    #standardize distances to be comparable with other models
+    # long_form['Distance'] = (long_form['Distance']-long_form['Distance'].mean())/long_form['Distance'].std()
+    return long_form
+
 def compute_distances(metadata_df, embeddings_dict, dataset_name, dist_metric, columns_list):
     distance_df_dict = {}
     if dist_metric == 'hausdorff':
         dist_metric = compute_hausdorff_dist
     for model_name, embeddings in embeddings_dict.items():
-        long_form_df_path = f'{dataset_name}/{model_name}/longform_{dist_metric}_distance.csv'
+        long_form_df_path = f'../{dataset_name}/{model_name}/longform_{dist_metric}_norm_distance_perspeakerlabel.csv'
         if os.path.isfile(long_form_df_path):
             print(f'DF for the {dist_metric} distances using {model_name} already exist!')
             distance_df_dict[model_name] = pd.read_csv(long_form_df_path)
@@ -307,7 +335,7 @@ def compute_distances(metadata_df, embeddings_dict, dataset_name, dist_metric, c
             df_embeddings = pd.DataFrame(embeddings)
             df_embeddings = df_embeddings.add_prefix('Embeddings_')
             df = pd.concat([metadata_df, df_embeddings], axis=1)
-            df.to_csv(f'{dataset_name}/{model_name}/df_embeddings.csv')
+            df.to_csv(f'../{dataset_name}/{model_name}/df_embeddings.csv')
 
             #create distance-based dataframe between all data samples in a square form
             pairwise = pd.DataFrame(
@@ -315,7 +343,7 @@ def compute_distances(metadata_df, embeddings_dict, dataset_name, dist_metric, c
                 columns = df[columns_list],
                 index = df[columns_list]
             )
-            pairwise.to_csv(f'{dataset_name}/{model_name}/pairwise_{dist_metric}_distance.csv')
+            pairwise.to_csv(f'../{dataset_name}/{model_name}/pairwise_{dist_metric}_distance.csv')
 
             #move from square form DF to long form DF
             long_form = pairwise.unstack()
@@ -331,20 +359,13 @@ def compute_distances(metadata_df, embeddings_dict, dataset_name, dist_metric, c
 
             #remove the distances computed between same samples (distance = 0)
             long_form = long_form.loc[long_form['AudioNames_1'] != long_form['AudioNames_2']]
+            long_form['Model'] = model_name
+            long_form = process_distances(long_form, dataset_name)
             long_form.to_csv(long_form_df_path)
             distance_df_dict[model_name] = long_form
-    return distance_df_dict
-
-def process_distances(dict_df, cfg):
-    norm_dist_df_dict = {}
-    for model_name, long_form in dict_df.items():
-        #remove distances computed between different speakers and different labels
-        long_form = long_form.loc[(long_form['Label_1']==long_form['Label_2']) & (long_form['ID_1']==long_form['ID_2'])]
-        #standardize distances to be comparable with other models
-        long_form['Distance'] = (long_form['Distance']-long_form['Distance'].mean())/long_form['Distance'].std()
-        long_form.to_csv(f'{cfg.dataset_name}/{model_name}/longform_cosine_norm_distance_perspeakerlabel.csv')
-        norm_dist_df_dict[model_name] = long_form
-    return norm_dist_df_dict
+    df_all = pd.concat(distance_df_dict.values(), ignore_index=True)
+    df_all.to_csv(f'../{dataset_name}/allmodels_{dist_metric}_distances.csv')
+    return df_all
 
 ##################################### DF Processing and Stats Functions ########################################
     

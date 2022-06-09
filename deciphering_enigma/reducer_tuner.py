@@ -13,7 +13,7 @@ from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import ParameterGrid
 
-from reducer_tuner_settings import _hyperparams_grid, _optimize_function, _knn, _subsetsize
+from .reducer_tuner_settings import _hyperparams_grid, _optimize_function, _knn, _subsetsize
 
 class ReducerTuner():
     """Tuner for dimensionality reduction methods.

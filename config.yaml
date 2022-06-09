@@ -1,0 +1,24 @@
+# Dataset Parameters
+dataset_name: scriptvsspon_speech
+dataset_path: /om2/user/gelbanna/datasets/scripted_spont_dataset/preprocessed_audios_dur3sec/*/*.wav
+meta_data_separate: False #or add file path (e.g. csv file)
+#TODO: Add a way to navigate labels based on directory tree
+name_convention: ID_Gender_Task_Label.wav
+resampling_rate: 16000
+preprocess_data: False #means chunking audios for now
+chunk_dur: 3 #sec
+balance_label: Label #item from name convention to be balanced per speaker
+
+# Feature Extractor Parameters
+# List of models predefined in the code: BYOL-A, BYOL-S variants, YAMNet, VGGish, TRILL, wav2vec2 and HuBERT
+
+# High Dimension Analysis Parameters
+#examples: cosine, euclidean and hausdorff
+dist_metrics: cosine
+
+# Dimensionality Reduction Parameters
+apply_dim_reduction: True # methods: PCA, tSNE, UMAP & PaCMAP
+
+# Voice Augmentation Parameters
+
+# Representation Method Parameters
