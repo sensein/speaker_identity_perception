@@ -55,7 +55,7 @@ class CKA():
         A symmetric matrix with centered columns and rows.
         """
         if not np.allclose(gram, gram.T):
-            raise ValueError('Input must be a symmetric matrix.')
+            # raise ValueError('Input must be a symmetric matrix.')
             gram = gram.copy()
 
         if self.unbiased:
@@ -94,7 +94,6 @@ class CKA():
         else:
             gram_x = self.gram_rbf(X)
             gram_y = self.gram_rbf(Y)
-
         gram_x = self.center_gram(gram_x)
         gram_y = self.center_gram(gram_y)
 
@@ -107,10 +106,12 @@ class CKA():
         return scaled_hsic / (normalization_x * normalization_y)
 
     def plot_heatmap(self, matrix, features_name, save_path='./', save_fig=True):
-        fig, ax = plt.subplots(1, 1, figsize=(20, 20))
+        fig, ax = plt.subplots(1, 1, figsize=(25, 20))
         sns.heatmap(matrix, ax=ax, yticklabels=features_name, annot=True, xticklabels=features_name)
-        ax.set_xlabel('Models', fontsize=15)
-        ax.set_ylabel('Models', fontsize=15)
+        ax.set_xticklabels(ax.get_xticklabels(), size = 15)
+        ax.set_yticklabels(ax.get_yticklabels(), size = 15)
+        ax.set_xlabel('Models', fontsize=30)
+        ax.set_ylabel('Models', fontsize=30)
         plt.tight_layout()
         if save_fig:
             plt.savefig(f'{save_path}CKA_models_{self.kernel}_{self.bias_str}.png')

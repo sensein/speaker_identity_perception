@@ -370,6 +370,30 @@ def compute_distances(metadata_df, embeddings_dict, dataset_name, dist_metric, c
     df_all.to_csv(f'../{dataset_name}/allmodels_{dist_metric}_distances.csv')
     return df_all
 
+def visualize_violin_dist(df_all):
+    fig, ax = plt.subplots(1, 1, figsize=(30, 10))
+    violin = sns.violinplot(data=df_all, x='Model', y='Distance', inner='quartile', hue='Label_1', split=True, ax=ax)
+    ax.set(xlabel=None, ylabel=None)
+    ax.set_xticklabels(ax.get_xticklabels(), size = 15)
+    ax.set_yticklabels(ax.get_yticks(), size = 15)
+    ax.set_ylabel('Standardized Cosine Distances', fontsize=20)
+    ax.set_xlabel('Models', fontsize=20)
+
+    # statistical annotation
+    y, h, col = df_all['Distance'].max() + df_all['Distance'].max()*0.05, df_all['Distance'].max()*0.01, 'k'
+    for i, model_name in enumerate(df_all['Model'].unique()):
+        d=cohend(df_all['Distance'].loc[(df_all.Label_1=='spon') & (df_all.Model==model_name)], df_all['Distance'].loc[(df_all.Label_1=='script') & (df_all.Model==model_name)])
+        x1, x2 = -0.25+i, 0.25+i
+        ax.plot([x1, x1, x2, x2], [y, y+h, y+h, y], lw=1.5, c=col)
+        ax.text((x1+x2)*.5, y+(h*1.5), f'cohen d={d:.2}', ha='center', va='bottom', color=col, fontsize=15)
+    violin.legend(fontsize = 15, \
+                   bbox_to_anchor= (1, 1), \
+                   title="Labels", \
+                   title_fontsize = 18, \
+                   shadow = True, \
+                   facecolor = 'white');
+    plt.tight_layout()
+
 ##################################### DF Processing and Stats Functions ########################################
     
 def explode(df, lst_cols, fill_value=''):
@@ -410,30 +434,6 @@ def cohend(d1, d2):
     # calculate the effect size
     return (u1 - u2) / s
 
-def visualize_violin_dist(df_all):
-    fig, ax = plt.subplots(1, 1, figsize=(30, 10))
-    violin = sns.violinplot(data=df_all, x='Model', y='Distance', inner='quartile', hue='Label_1', split=True, ax=ax)
-    ax.set(xlabel=None, ylabel=None)
-    ax.set_xticklabels(ax.get_xticklabels(), size = 15)
-    ax.set_yticklabels(ax.get_yticks(), size = 15)
-    ax.set_ylabel('Standardized Cosine Distances', fontsize=20)
-    ax.set_xlabel('Models', fontsize=20)
-
-    # statistical annotation
-    y, h, col = df_all['Distance'].max() + df_all['Distance'].max()*0.05, df_all['Distance'].max()*0.01, 'k'
-    for i, model_name in enumerate(df_all['Model'].unique()):
-        d=cohend(df_all['Distance'].loc[(df_all.Label_1=='spon') & (df_all.Model==model_name)], df_all['Distance'].loc[(df_all.Label_1=='script') & (df_all.Model==model_name)])
-        x1, x2 = -0.25+i, 0.25+i
-        ax.plot([x1, x1, x2, x2], [y, y+h, y+h, y], lw=1.5, c=col)
-        ax.text((x1+x2)*.5, y+(h*1.5), f'cohen d={d:.2}', ha='center', va='bottom', color=col, fontsize=15)
-    violin.legend(fontsize = 15, \
-                   bbox_to_anchor= (1, 1), \
-                   title="Labels", \
-                   title_fontsize = 18, \
-                   shadow = True, \
-                   facecolor = 'white');
-    plt.tight_layout()
-
 def visualize_embeddings(df, label_name, metrics=[], axis=[], acoustic_param={}, opt_structure='Local', plot_type='sns', red_name='PCA', row=1, col=1, hovertext='', label='spon'):
     if plot_type == 'sns':
         sns.scatterplot(data=df, x=(red_name, opt_structure, 'Dim1'), y=(red_name, opt_structure, 'Dim2'), hue=label_name
@@ -457,45 +457,6 @@ def visualize_embeddings(df, label_name, metrics=[], axis=[], acoustic_param={},
         return points
 
 ##################################### Sklearn ML Functions ########################################
-
-def get_sklearn_models(seed=42):
-    """
-    Load a family of standard ML classifiers as a dictionary.
-
-    Current models: Logistic Regression, Random Forests and SVC
-
-    Returns
-    ----------
-    dict
-        A dictionary of ML classifiers
-        key = model name, value = model (a scikit-learn Estimator)
-    """
-    
-    lr = LogisticRegression(max_iter=1e4, random_state=seed)
-    params_lr = {
-        'estimator__C': np.logspace(5, -5, num=11),
-        'estimator__class_weight': ['balanced', None],
-    }
-
-    rf = RandomForestClassifier(random_state=seed)
-    params_rf = {
-        'estimator__max_depth': range(5, 30, 5),
-        'estimator__min_samples_split': [2, 5, 10],
-        'estimator__class_weight': ['balanced', None],
-    }
-
-    svc = SVC(max_iter=1e4, random_state=seed)
-    params_svc = {
-        'estimator__kernel': ['linear'],
-        'estimator__C': np.logspace(5, -5, num=11),
-        'estimator__class_weight': ['balanced', None]
-    }
-
-    estimator_list = [lr, rf, svc]
-    log_list = ['LR', 'RF', 'SVC']
-    param_list = [params_lr, params_rf, params_svc]
-
-    return log_list, estimator_list, param_list
 
 def eval_features_importance(clf_name, estimator):
     """
