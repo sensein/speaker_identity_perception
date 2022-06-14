@@ -55,15 +55,14 @@ class ML_Encoder():
         scores_list = [ v.tolist() for k,v in grid_result.cv_results_.items() if 'split' in k]
         return list(itertools.chain.from_iterable(scores_list))
         
-    def run(self, model_name, features, labels, ids, save_path='./'):
+    def run(self, model_name, features, labels, ids, dataset_name):
         # create DF with features, labels and ids
-        dev_results = {}
+        dev_results = {'Model':[], 'Label':[], 'Clf':[], 'Score':[]}
         data_df = self.create_df(features, labels, ids)
         for label in data_df['label'].unique():
             print(f'{model_name} with {label} samples:')
             data_label = data_df.loc[data_df['label'] == label]
             train_features, test_features, train_ids, test_ids = self.split_data(data_label)
-            dev_results[label] = {}
             for i, (clf_name, clf_params) in enumerate(self.model_params_grid.items()):
                 print(f'    Step {i+1}/{len(self.model_params_grid.keys())}: {clf_name}...')    
                 clf_object = self.get_sklearn_model(clf_name)
@@ -74,7 +73,12 @@ class ML_Encoder():
                 grid_pipeline = self.build_pipeline(clf, clf_params)
                 grid_result = grid_pipeline.fit(train_features, train_ids)
                 test_result = grid_result.score(test_features, test_ids)
-                dev_results[label][clf_name] = self.get_dev_scores(grid_result)
+                dev_results['Model'].append(model_name)
+                dev_results['Label'].append(label)
+                dev_results['Clf'].append(clf_name)
+                dev_results['Score'].append(self.get_dev_scores(grid_result))
                 # print(f'        Best {clf_name} UAR for training: {grid_result.best_score_*100: .2f} using {grid_result.best_params_}')
                 print(f'        Test Data UAR: {test_result*100: .2f}')
-        return dev_results
+        df = pd.DataFrame(dev_results)
+        df = df.explode('Score')
+        df.to_csv(f'../{dataset_name}/{model_name}/linear_encoding_scores.csv', index=False)

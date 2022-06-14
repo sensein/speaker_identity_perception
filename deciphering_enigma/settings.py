@@ -50,11 +50,9 @@ _hyperparams_grid_models = {
                         },
                         'RF': {
                             'estimator__max_depth': range(5, 30, 5),
-                            'estimator__min_samples_split': [2, 5, 10],
                             'estimator__class_weight': ['balanced', None],
                         },
                         'SVM': {
-                            'estimator__kernel': ['linear'],
                             'estimator__C': np.logspace(5, -5, num=11),
                             'estimator__class_weight': ['balanced', None]
                         }

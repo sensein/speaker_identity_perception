@@ -456,6 +456,19 @@ def visualize_embeddings(df, label_name, metrics=[], axis=[], acoustic_param={},
                      c=df[label_name], s=20, cmap="Spectral")
         return points
 
+def add_os_features(embeddings_dict, dataset_name):
+    os_features = np.load(f'{dataset_name}/os_egemaps_embeddings.npy')
+    # os_features = os_features[common_idx, :]
+
+    freq_indices = list(np.arange(0,10,1))+list(np.arange(30,32,1))+list(np.arange(40,58,1))
+    spectral_indices = list(np.arange(20,30,1))+list(np.arange(36,40,1))+list(np.arange(58,81,1))
+    energy_indices = list(np.arange(10,20,1))+list(np.arange(32,36,1))+list(np.arange(81,88,1))
+
+    embeddings_dict['OS_Frequency'] = os_features[:, freq_indices]
+    embeddings_dict['OS_Spectral'] = os_features[:, spectral_indices]
+    embeddings_dict['OS_Energy'] = os_features[:, energy_indices]
+    return embeddings_dict
+    
 def run_cka(cka_class, embeddings_dict):
     num_models = len(embeddings_dict.keys())
     cka_ = np.zeros((num_models, num_models))

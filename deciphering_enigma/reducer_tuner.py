@@ -25,7 +25,7 @@ class ReducerTuner():
     """
 
     def __init__(self):
-        self.reducer_params_grid = _hyperparams_grid
+        self.reducer_params_grid = _hyperparams_grid_reducers
         self.optimize_func = _optimize_function
         self.knn = _knn; self.subsetsize = _subsetsize
 
@@ -74,7 +74,7 @@ class ReducerTuner():
             df.loc[:, (name, 'Local', 'Dim2')] = local_embeddings[:,1]
             df.loc[:, (name, 'Global', 'Dim1')] = global_embeddings[:,0]
             df.loc[:, (name, 'Global', 'Dim2')] = global_embeddings[:,1]
-        temp_df = metadata_df.copy()
+        temp_df = metadata.copy()
         temp_df.columns = pd.MultiIndex.from_tuples(map(lambda x: (x, '', ''), temp_df.columns))
         df = pd.concat([df, temp_df], axis=1)
         df.to_csv(save_path)
