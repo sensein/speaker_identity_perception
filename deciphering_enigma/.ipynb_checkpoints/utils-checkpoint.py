@@ -22,7 +22,10 @@ from transformers import Wav2Vec2Model, HubertModel, Data2VecAudioModel
 
 import librosa
 import serab_byols
+import parselmouth
 import soundfile as sf
+import pyloudnorm as pyln
+from parselmouth.praat import call
 
 from scipy.spatial.distance import pdist, squareform, directed_hausdorff
 
@@ -436,14 +439,13 @@ def cohend(d1, d2):
 
 def visualize_embeddings(df, label_name, metrics=[], axis=[], acoustic_param={}, opt_structure='Local', plot_type='sns', red_name='PCA', row=1, col=1, hovertext='', label='spon'):
     if plot_type == 'sns':
-        sns.scatterplot(data=df, x=(red_name, opt_structure, 'Dim1'), y=(red_name, opt_structure, 'Dim2'), hue=label_name
-                        , style=label_name, palette='deep', ax=axis)
+        if label_name == 'Gender':
+            sns.scatterplot(data=df, x=(red_name, opt_structure, 'Dim1'), y=(red_name, opt_structure, 'Dim2'), hue=label_name, palette='deep', ax=axis)
+        else:
+            sns.scatterplot(data=df, x=(red_name, opt_structure, 'Dim1'), y=(red_name, opt_structure, 'Dim2'), hue=label_name
+                            , style=label_name, palette='deep', ax=axis)
         axis.set(xlabel=None, ylabel=None)
         axis.get_legend().remove()
-        if len(metrics) != 0:
-            axis.set_title(f'{red_name}: KNN={metrics[0]:0.2f}, CPD={metrics[1]:0.2f}', fontsize=20)
-        else:
-            axis.set_title(f'{red_name}', fontsize=20)
     elif plot_type == 'plotly':
         traces = px.scatter(x=df[red_name, opt_structure, 'Dim1'], y=df[red_name, opt_structure, 'Dim2'], color=df[label_name].astype(str), hover_name=hovertext)
         traces.layout.update(showlegend=False)
@@ -453,7 +455,7 @@ def visualize_embeddings(df, label_name, metrics=[], axis=[], acoustic_param={},
         )
     else:
         points = axis.scatter(df[red_name, opt_structure, 'Dim1'], df[red_name, opt_structure, 'Dim2'],
-                     c=df[label_name], s=20, cmap="Spectral")
+                     c=df[label_name], s=10, cmap="Spectral")
         return points
 
 def add_os_features(embeddings_dict, dataset_name):
@@ -496,3 +498,149 @@ def eval_features_importance(clf_name, estimator):
         feature_importances = pd.DataFrame(np.abs(estimator.best_estimator_.named_steps["estimator"].coef_[0]),
                                             columns=['importance']).sort_values('importance', ascending=False)
     return feature_importances
+
+def compute_acoustic_features(audio_files, save_path='.', feature='f0', mfcc_num=1):
+    feature_values = []
+    for file in tqdm(audio_files):
+        audio, orig_sr = librosa.load(file)
+        if feature == 'f0':
+            #measure the median fundamental frequency
+            f0 = librosa.yin(audio, fmin=librosa.note_to_hz('C1'),
+                                    fmax=librosa.note_to_hz('C5'), sr=orig_sr)
+            feature_values.append(np.nanmedian(f0))
+        elif feature == 'rms':
+            feature_values.append(np.nanmedian(librosa.feature.rms(audio)))
+        elif feature == 'mfcc':
+            #measure the first mfcc
+            mfccs = librosa.feature.mfcc(audio, sr=orig_sr)
+            feature_values.append(np.nanmedian(mfccs[mfcc_num-1,:]))
+        elif feature == 'num_syl':
+            feature_values.append(speech_rate(file)['nsyll'])
+    feature_values = np.array(feature_values)
+    with open(f"{save_path}/{feature}.npy", "wb") as output_file:
+        np.save(output_file, feature_values)
+    return feature_values
+
+def speech_rate(filename):
+    silencedb = -25
+    mindip = 2
+    minpause = 0.3
+
+    # print a single header line with column names and units
+    # cols = ['soundname', 'nsyll', 'npause', 'dur(s)', 'phonationtime(s)', 'speechrate(nsyll / dur)', 'articulation '
+    #        'rate(nsyll / phonationtime)', 'ASD(speakingtime / nsyll)']
+    # df = pd.DataFrame(columns = cols)
+
+    sound = parselmouth.Sound(filename)
+    originaldur = sound.get_total_duration()
+    intensity = sound.to_intensity(50)
+    start = call(intensity, "Get time from frame number", 1)
+    nframes = call(intensity, "Get number of frames")
+    end = call(intensity, "Get time from frame number", nframes)
+    min_intensity = call(intensity, "Get minimum", 0, 0, "Parabolic")
+    max_intensity = call(intensity, "Get maximum", 0, 0, "Parabolic")
+
+    # get .99 quantile to get maximum (without influence of non-speech sound bursts)
+    max_99_intensity = call(intensity, "Get quantile", 0, 0, 0.99)
+
+    # estimate Intensity threshold
+    threshold = max_99_intensity + silencedb
+    threshold2 = max_intensity - max_99_intensity
+    threshold3 = silencedb - threshold2
+    if threshold < min_intensity:
+        threshold = min_intensity
+
+    # get pauses (silences) and speakingtime
+    textgrid = call(intensity, "To TextGrid (silences)", threshold3, minpause, 0.1, "silent", "sounding")
+    silencetier = call(textgrid, "Extract tier", 1)
+    silencetable = call(silencetier, "Down to TableOfReal", "sounding")
+    npauses = call(silencetable, "Get number of rows")
+    speakingtot = 0
+    for ipause in range(npauses):
+        pause = ipause + 1
+        beginsound = call(silencetable, "Get value", pause, 1)
+        endsound = call(silencetable, "Get value", pause, 2)
+        speakingdur = endsound - beginsound
+        speakingtot += speakingdur
+
+    intensity_matrix = call(intensity, "Down to Matrix")
+    # sndintid = sound_from_intensity_matrix
+    sound_from_intensity_matrix = call(intensity_matrix, "To Sound (slice)", 1)
+    # use total duration, not end time, to find out duration of intdur (intensity_duration)
+    # in order to allow nonzero starting times.
+    intensity_duration = call(sound_from_intensity_matrix, "Get total duration")
+    intensity_max = call(sound_from_intensity_matrix, "Get maximum", 0, 0, "Parabolic")
+    point_process = call(sound_from_intensity_matrix, "To PointProcess (extrema)", "Left", "yes", "no", "Sinc70")
+    # estimate peak positions (all peaks)
+    numpeaks = call(point_process, "Get number of points")
+    t = [call(point_process, "Get time from index", i + 1) for i in range(numpeaks)]
+
+    # fill array with intensity values
+    timepeaks = []
+    peakcount = 0
+    intensities = []
+    for i in range(numpeaks):
+        value = call(sound_from_intensity_matrix, "Get value at time", t[i], "Cubic")
+        if value > threshold:
+            peakcount += 1
+            intensities.append(value)
+            timepeaks.append(t[i])
+
+    # fill array with valid peaks: only intensity values if preceding
+    # dip in intensity is greater than mindip
+    validpeakcount = 0
+    currenttime = timepeaks[0]
+    currentint = intensities[0]
+    validtime = []
+
+    for p in range(peakcount - 1):
+        following = p + 1
+        followingtime = timepeaks[p + 1]
+        dip = call(intensity, "Get minimum", currenttime, timepeaks[p + 1], "None")
+        diffint = abs(currentint - dip)
+        if diffint > mindip:
+            validpeakcount += 1
+            validtime.append(timepeaks[p])
+        currenttime = timepeaks[following]
+        currentint = call(intensity, "Get value at time", timepeaks[following], "Cubic")
+
+    # Look for only voiced parts
+    pitch = sound.to_pitch_ac(0.02, 30, 4, False, 0.03, 0.25, 0.01, 0.35, 0.25, 450)
+    voicedcount = 0
+    voicedpeak = []
+
+    for time in range(validpeakcount):
+        querytime = validtime[time]
+        whichinterval = call(textgrid, "Get interval at time", 1, querytime)
+        whichlabel = call(textgrid, "Get label of interval", 1, whichinterval)
+        value = pitch.get_value_at_time(querytime) 
+        if not math.isnan(value):
+            if whichlabel == "sounding":
+                voicedcount += 1
+                voicedpeak.append(validtime[time])
+
+    # calculate time correction due to shift in time for Sound object versus
+    # intensity object
+    timecorrection = originaldur / intensity_duration
+
+    # Insert voiced peaks in TextGrid
+    call(textgrid, "Insert point tier", 1, "syllables")
+    for i in range(len(voicedpeak)):
+        position = (voicedpeak[i] * timecorrection)
+        call(textgrid, "Insert point", 1, position, "")
+
+    # return results
+    speakingrate = voicedcount / originaldur
+    articulationrate = voicedcount / speakingtot
+    npause = npauses - 1
+    # asd = speakingtot / voicedcount
+    speechrate_dictionary = {'soundname':filename,
+                             'nsyll':voicedcount,
+                             'npause': npause,
+                             'dur(s)':originaldur,
+                             'phonationtime(s)':intensity_duration,
+                             'speechrate(nsyll / dur)': speakingrate,
+                             "articulation rate(nsyll / phonationtime)":articulationrate,
+                             # "ASD(speakingtime / nsyll)":asd
+                            }
+    return speechrate_dictionary
