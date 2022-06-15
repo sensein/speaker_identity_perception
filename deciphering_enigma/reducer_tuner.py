@@ -64,7 +64,8 @@ class ReducerTuner():
         local_val, global_val = self.embedding_quality(embeddings, reduced_embeddings, knn=self.knn, subsetsize=self.subsetsize)
         return reduced_embeddings, local_val, global_val
     
-    def save_results_pandas(self, reducers_embeddings_dict, metadata=None, save_path='./'):
+    def save_results_pandas(self, reducers_embeddings_dict, metadata=None, model_name=None, dataset_name=None):
+        save_path = f'../{dataset_name}/{model_name}/dim_reduction.csv'
         combined_column_obj = pd.MultiIndex.from_product([reducers_embeddings_dict.keys(),['Local', 'Global'], ['Dim1', 'Dim2']], names=["Method", "Optimized Metric", "Dim"])
         df = pd.DataFrame(data=[], columns=combined_column_obj)
         for j, name in enumerate(reducers_embeddings_dict.keys()):
@@ -102,4 +103,4 @@ class ReducerTuner():
                 reducers_embeddings_dict[reducer_name]['Local'] = all_embeddings[max_local_idx]
                 reducers_embeddings_dict[reducer_name]['Global'] = all_embeddings[max_global_idx]
             if save_results:
-                self.save_results_pandas(reducers_embeddings_dict, metadata, save_path)
+                self.save_results_pandas(reducers_embeddings_dict, metadata, model_name, dataset_name)

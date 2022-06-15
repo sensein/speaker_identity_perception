@@ -1,3 +1,4 @@
+import os
 import itertools
 import numpy as np
 import pandas as pd
@@ -59,26 +60,29 @@ class ML_Encoder():
         # create DF with features, labels and ids
         dev_results = {'Model':[], 'Label':[], 'Clf':[], 'Score':[]}
         data_df = self.create_df(features, labels, ids)
-        for label in data_df['label'].unique():
-            print(f'{model_name} with {label} samples:')
-            data_label = data_df.loc[data_df['label'] == label]
-            train_features, test_features, train_ids, test_ids = self.split_data(data_label)
-            for i, (clf_name, clf_params) in enumerate(self.model_params_grid.items()):
-                print(f'    Step {i+1}/{len(self.model_params_grid.keys())}: {clf_name}...')    
-                clf_object = self.get_sklearn_model(clf_name)
-                if clf_name == 'RF':
-                    clf = clf_object(random_state = self.seed)
-                else:
-                    clf = clf_object(random_state = self.seed, max_iter=1e4)
-                grid_pipeline = self.build_pipeline(clf, clf_params)
-                grid_result = grid_pipeline.fit(train_features, train_ids)
-                test_result = grid_result.score(test_features, test_ids)
-                dev_results['Model'].append(model_name)
-                dev_results['Label'].append(label)
-                dev_results['Clf'].append(clf_name)
-                dev_results['Score'].append(self.get_dev_scores(grid_result))
-                # print(f'        Best {clf_name} UAR for training: {grid_result.best_score_*100: .2f} using {grid_result.best_params_}')
-                print(f'        Test Data UAR: {test_result*100: .2f}')
-        df = pd.DataFrame(dev_results)
-        df = df.explode('Score')
-        df.to_csv(f'../{dataset_name}/{model_name}/linear_encoding_scores.csv', index=False)
+        if os.path.isfile(f'../{dataset_name}/{model_name}/linear_encoding_scores.csv'):
+            print(f'Linear Encoding Scores are already saved for {model_name} model!')
+        else:
+            for label in data_df['label'].unique():
+                print(f'{model_name} with {label} samples:')
+                data_label = data_df.loc[data_df['label'] == label]
+                train_features, test_features, train_ids, test_ids = self.split_data(data_label)
+                for i, (clf_name, clf_params) in enumerate(self.model_params_grid.items()):
+                    print(f'    Step {i+1}/{len(self.model_params_grid.keys())}: {clf_name}...')    
+                    clf_object = self.get_sklearn_model(clf_name)
+                    if clf_name == 'RF':
+                        clf = clf_object(random_state = self.seed)
+                    else:
+                        clf = clf_object(random_state = self.seed, max_iter=1e4)
+                    grid_pipeline = self.build_pipeline(clf, clf_params)
+                    grid_result = grid_pipeline.fit(train_features, train_ids)
+                    test_result = grid_result.score(test_features, test_ids)
+                    dev_results['Model'].append(model_name)
+                    dev_results['Label'].append(label)
+                    dev_results['Clf'].append(clf_name)
+                    dev_results['Score'].append(self.get_dev_scores(grid_result))
+                    # print(f'        Best {clf_name} UAR for training: {grid_result.best_score_*100: .2f} using {grid_result.best_params_}')
+                    print(f'        Test Data UAR: {test_result*100: .2f}')
+            df = pd.DataFrame(dev_results)
+            df = df.explode('Score')
+            df.to_csv(f'../{dataset_name}/{model_name}/linear_encoding_scores.csv', index=False)

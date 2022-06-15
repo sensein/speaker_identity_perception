@@ -45,7 +45,7 @@ _knn = 195; _subsetsize = 1000
 _split_train = 0.7 # 70% percent
 _hyperparams_grid_models = {
                         'LR': {
-                            'estimator__C': np.logspace(5, -5, num=11),
+                            'estimator__C': np.logspace(5, -4, num=11),
                             'estimator__class_weight': ['balanced', None],
                         },
                         'RF': {
@@ -53,7 +53,7 @@ _hyperparams_grid_models = {
                             'estimator__class_weight': ['balanced', None],
                         },
                         'SVM': {
-                            'estimator__C': np.logspace(5, -5, num=11),
+                            'estimator__C': np.logspace(5, -4, num=11),
                             'estimator__class_weight': ['balanced', None]
                         }
                     }
