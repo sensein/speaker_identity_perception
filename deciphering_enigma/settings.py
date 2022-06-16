@@ -1,10 +1,10 @@
 import numpy as np
 
-_MODELS_WEIGHTS = {'BYOL-A_default': 'byola_checkpoints/byola/AudioNTT2020-BYOLA-64x96d2048.pth',
-                   'BYOL-S_default': 'serab-byols/checkpoints/default2048_BYOLAs64x96-2105311814-e100-bs256-lr0003-rs42.pth',
-                   'Hybrid_BYOL-S_default': 'byola_checkpoints/hybrid_byols/default2048_BYOLAs64x96-osandbyolaloss6373-e100-bs128-lr0003-rs42.pth',
-                   'BYOL-S_cvt': 'byola_checkpoints/byols_encoders/cvt_s1-d1-e64_s2-d1-e256_s3-d1-e512_BYOLAs64x96-2107301623-e100-bs256-lr0003-rs42.pth',
-                   'Hybrid_BYOL-S_cvt': 'serab-byols/checkpoints/cvt_s1-d1-e64_s2-d1-e256_s3-d1-e512_BYOLAs64x96-osandbyolaloss6373-e100-bs256-lr0003-rs42.pth',
+_MODELS_WEIGHTS = {'BYOL-A_default': '../byola_checkpoints/byola/AudioNTT2020-BYOLA-64x96d2048.pth',
+                   'BYOL-S_default': '../serab-byols/checkpoints/default2048_BYOLAs64x96-2105311814-e100-bs256-lr0003-rs42.pth',
+                   'Hybrid_BYOL-S_default': '../byola_checkpoints/hybrid_byols/default2048_BYOLAs64x96-osandbyolaloss6373-e100-bs128-lr0003-rs42.pth',
+                   'BYOL-S_cvt': '../byola_checkpoints/byols_encoders/cvt_s1-d1-e64_s2-d1-e256_s3-d1-e512_BYOLAs64x96-2107301623-e100-bs256-lr0003-rs42.pth',
+                   'Hybrid_BYOL-S_cvt': '../serab-byols/checkpoints/cvt_s1-d1-e64_s2-d1-e256_s3-d1-e512_BYOLAs64x96-osandbyolaloss6373-e100-bs256-lr0003-rs42.pth',
                    # 'TERA': '',
                    'TRILLsson': 'https://tfhub.dev/google/trillsson2/1',
                    # 'YAMNET': 'https://tfhub.dev/google/yamnet/1',

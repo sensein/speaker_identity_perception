@@ -116,9 +116,9 @@ def chunking_audio(audio, file, chunk_dur, sr, save_path, speaker_id, audio_form
     except:
         print(f'The number of seconds in audio {file} is smaller than the splitting criteria ({chunk_dur} sec)')
 
-def balance_data():
+def balance_data(dataset_path):
     files = []
-    wav_dirs = glob('../datasets/scripted_spont_dataset/preprocessed_audios_dur3sec/*')
+    wav_dirs = glob(dataset_path)
     for wav_dir in wav_dirs:
         wav_files = np.array(sorted(glob(f'{wav_dir}/*.wav')))
         ids = np.array(list(map(lambda x: os.path.basename(x).split('_')[0], wav_files)))
@@ -458,9 +458,10 @@ def visualize_embeddings(df, label_name, metrics=[], axis=[], acoustic_param={},
                      c=df[label_name], s=10, cmap="Spectral")
         return points
 
-def add_os_features(embeddings_dict, dataset_name):
-    os_features = np.load(f'{dataset_name}/os_egemaps_embeddings.npy')
-    # os_features = os_features[common_idx, :]
+def add_os_features(embeddings_dict, dataset_name, audio_files_orig, audio_files):
+    os_features = np.load(f'../{dataset_name}/os_egemaps_embeddings_script_spon_5sec.npy')
+    _,_,idx=np.intersect1d(audio_files_orig, audio_files, return_indices=True)
+    os_features = os_features[idx, :]
 
     freq_indices = list(np.arange(0,10,1))+list(np.arange(30,32,1))+list(np.arange(40,58,1))
     spectral_indices = list(np.arange(20,30,1))+list(np.arange(36,40,1))+list(np.arange(58,81,1))
