@@ -1,9 +1,9 @@
 # Dataset Parameters
-dataset_name: scriptvsspon_speech_5sec
-dataset_path: /om2/user/gelbanna/datasets/scripted_spont_dataset/preprocessed_audios_dur5sec/*/*.wav
+dataset_name: pitchshift_down_vctk_speech
+dataset_path: /om2/user/gelbanna/datasets/mini_vctk/*/*.wav
 meta_data_separate: False #or add file path (e.g. csv file)
 #TODO: Add a way to navigate labels based on directory tree
-name_convention: ID_Gender_Task_Label.wav
+name_convention: ID_xx_xx_Label.wav
 resampling_rate: 16000
 preprocess_data: False #means chunking audios for now
 chunk_dur: 3 #sec

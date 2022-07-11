@@ -8,7 +8,9 @@ from tqdm import tqdm
 from glob import glob
 from collections import Counter
 
+from pylab import cm
 import seaborn as sns
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 import yaml
@@ -38,6 +40,10 @@ from .settings import _MODELS_WEIGHTS
 
 import warnings
 warnings.filterwarnings('ignore')
+
+mpl.rcParams['font.family'] = 'Avenir'
+plt.rcParams['font.size'] = 18
+plt.rcParams['axes.linewidth'] = 2
 
 ##################################### Config file processing ########################################
 
@@ -223,7 +229,7 @@ def load_dataset(files, cfg, speaker_ids=[], audio_format='wav', device='cuda'):
                     target_sr=cfg.resampling_rate,
                     res_type='kaiser_best'
                 )
-            audio_tensor_list.append(torch.from_numpy(float_audio).to(torch.device(device)))
+            audio_tensor_list.append(torch.from_numpy(float_audio))
         with open(audio_tensor_file, 'wb') as f:
             pickle.dump(audio_tensor_list, f)
         return audio_tensor_list
@@ -279,7 +285,7 @@ def generate_speech_embeddings(audio_tensor_list, model, model_name, cfg):
                 else:
                     model.eval()
                     with torch.no_grad():
-                        embedding = model(audio.unsqueeze(0)).last_hidden_state.mean(1)
+                        embedding = model(audio.to('cuda').unsqueeze(0)).last_hidden_state.mean(1)
                         embedding = np.squeeze(embedding.cpu().detach().numpy())
                 embeddings.append(embedding)
             embeddings = np.array(embeddings)
