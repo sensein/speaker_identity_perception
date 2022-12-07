@@ -1,9 +1,12 @@
 ''' This code is adapted from 
 https://colab.research.google.com/github/google-research/google-research/blob/master/representation_similarity/Demo.ipynb#scrollTo=45qb6zdSsHj6'''
 
+import os
 import numpy as np
 import seaborn as sns
+from tqdm import tqdm
 import matplotlib.pyplot as plt
+from sklearn.preprocessing import StandardScaler
 
 class CKA():
 
@@ -105,13 +108,78 @@ class CKA():
         normalization_y = np.linalg.norm(gram_y)
         return scaled_hsic / (normalization_x * normalization_y)
 
+    def feature_space_linear_cka(self, features_x, features_y, debiased=False):
+        """Compute CKA with a linear kernel, in feature space.
+
+        This is typically faster than computing the Gram matrix when there are fewer
+        features than examples.
+
+        Args:
+            features_x: A num_examples x num_features matrix of features.
+            features_y: A num_examples x num_features matrix of features.
+            debiased: Use unbiased estimator of dot product similarity. CKA may still be
+            biased. Note that this estimator may be negative.
+
+        Returns:
+            The value of CKA between X and Y.
+        """
+        features_x = features_x - np.mean(features_x, 0, keepdims=True)
+        features_y = features_y - np.mean(features_y, 0, keepdims=True)
+
+        dot_product_similarity = np.linalg.norm(features_x.T.dot(features_y)) ** 2
+        normalization_x = np.linalg.norm(features_x.T.dot(features_x))
+        normalization_y = np.linalg.norm(features_y.T.dot(features_y))
+
+        if debiased:
+            n = features_x.shape[0]
+            # Equivalent to np.sum(features_x ** 2, 1) but avoids an intermediate array.
+            sum_squared_rows_x = np.einsum('ij,ij->i', features_x, features_x)
+            sum_squared_rows_y = np.einsum('ij,ij->i', features_y, features_y)
+            squared_norm_x = np.sum(sum_squared_rows_x)
+            squared_norm_y = np.sum(sum_squared_rows_y)
+
+            dot_product_similarity = _debiased_dot_product_similarity_helper(
+                dot_product_similarity, sum_squared_rows_x, sum_squared_rows_y,
+                squared_norm_x, squared_norm_y, n)
+            normalization_x = np.sqrt(_debiased_dot_product_similarity_helper(
+                normalization_x ** 2, sum_squared_rows_x, sum_squared_rows_x,
+                squared_norm_x, squared_norm_x, n))
+            normalization_y = np.sqrt(_debiased_dot_product_similarity_helper(
+                normalization_y ** 2, sum_squared_rows_y, sum_squared_rows_y,
+                squared_norm_y, squared_norm_y, n))
+
+        return dot_product_similarity / (normalization_x * normalization_y)
+         
     def plot_heatmap(self, matrix, features_name, save_path='./', save_fig=True):
-        fig, ax = plt.subplots(1, 1, figsize=(25, 20))
-        sns.heatmap(matrix, ax=ax, yticklabels=features_name, annot=True, xticklabels=features_name)
-        ax.set_xticklabels(ax.get_xticklabels(), size = 15)
-        ax.set_yticklabels(ax.get_yticklabels(), size = 15)
-        ax.set_xlabel('Models', fontsize=30)
-        ax.set_ylabel('Models', fontsize=30)
+        fig, ax = plt.subplots(1, 1, figsize=(35, 30))
+        ax = sns.heatmap(matrix, ax=ax, yticklabels=features_name, annot=True, annot_kws={"fontsize":35}, xticklabels=features_name)
+        ax.figure.axes[-1].set_ylabel('CKA Similarity', size=40)
+        ax.figure.axes[-1].set_yticklabels(ax.figure.axes[-1].get_yticklabels(), size = 40)
+        ax.set_xticklabels(ax.get_xticklabels(), size = 40)
+        ax.set_yticklabels(ax.get_yticklabels(), size = 40)
+        ax.set_xlabel('Models', fontsize=40)
+        ax.set_ylabel('Models', fontsize=40)
         plt.tight_layout()
         if save_fig:
             plt.savefig(f'{save_path}CKA_models_{self.kernel}_{self.bias_str}.png')
+
+    def run_cka(self, embeddings_dict, compute_from='examples', save_path='./', save_array=True):
+        cka_file = f'{save_path}cka.npy'
+        if os.path.isfile(cka_file):
+            print(f'CKA is already saved')
+            cka_ = np.load(cka_file)
+        else:
+            num_models = len(embeddings_dict.keys())
+            cka_ = np.zeros((num_models, num_models))
+            scaler = StandardScaler()
+            for i, (_, model_1) in enumerate(tqdm(embeddings_dict.items())):
+                for j, (_, model_2) in enumerate(embeddings_dict.items()):
+                    model_1 = scaler.fit_transform(model_1)
+                    model_2 = scaler.fit_transform(model_2)
+                    if compute_from == 'examples':
+                        cka_[i,j] = self.compute(model_1, model_2)
+                    else:
+                        cka_[i,j] = self.feature_space_linear_cka(model_1, model_2)
+            if save_array:
+                np.save(cka_file, cka_)
+        return cka_

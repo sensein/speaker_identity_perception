@@ -1,0 +1,37 @@
+2022-12-07 10:21 INFO {'audio_dir': '/om2/user/gelbanna/datasets/LibriSpeech/LibriSpeech/', 'num_trials': 200000, 'encoder_name': 'Log-Mel-Spectrogram', 'encoder_weights': '', 'pooling': 'mean+max', 'aggregation': 'sum', 'decoder_name': 'MLP', 'initial_size': 128, 'hidden_size': 4096, 'proj_size': 256, 'use_bn': False, 'seed': 42, 'bs': 128, 'lr': 0.001, 'epochs': 100, 'gpus': 2, 'num_workers': 2, 'resume': None, 'checkpoint_folder': 'checkpoints'}
+/om2/user/gelbanna/miniconda3/envs/ASpD38/lib/python3.8/site-packages/torchaudio/functional/functional.py:571: UserWarning: At least one mel filterbank has all zero values. The value for `n_mels` (128) may be set too high. Or, the value for `n_freqs` (1025) may be set too low.
+  warnings.warn(
+2022-12-07 10:21 INFO Dataset: 281241 .wav files from /om2/user/gelbanna/datasets/LibriSpeech/LibriSpeech/
+2022-12-07 10:21 INFO Number of Speakers: 2338
+2022-12-07 10:21 INFO Training ASpD-Log-Mel-Spectrogram-MLP_128_4096_256_bnFalse-e100-bs128-lr001-rs42...
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+IPU available: False, using: 0 IPUs
+HPU available: False, using: 0 HPUs
+Initializing distributed: GLOBAL_RANK: 0, MEMBER: 1/1
+2022-12-07 10:21 INFO Added key: store_based_barrier_key:1 to store for rank: 0
+2022-12-07 10:21 INFO Rank 0: Completed store-based barrier for key:store_based_barrier_key:1 with 1 nodes.
+----------------------------------------------------------------------------------------------------
+distributed_backend=nccl
+All distributed processes registered. Starting with 1 processes
+----------------------------------------------------------------------------------------------------
+
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0,1,2]
+
+  | Name       | Type       | Params
+------------------------------------------
+0 | decoder    | MLP        | 1.6 M 
+1 | loss       | BCELoss    | 0     
+2 | aggregator | Aggregator | 0     
+3 | sigmoid    | Sigmoid    | 0     
+------------------------------------------
+1.6 M     Trainable params
+0         Non-trainable params
+1.6 M     Total params
+6.343     Total estimated model params size (MB)
+SLURM auto-requeueing enabled. Setting signal handlers.
+/om2/user/gelbanna/miniconda3/envs/ASpD38/lib/python3.8/site-packages/pytorch_lightning/trainer/connectors/data_connector.py:224: PossibleUserWarning: The dataloader, train_dataloader, does not have many workers which may be a bottleneck. Consider increasing the value of the `num_workers` argument` (try 192 which is the number of cpus on this machine) in the `DataLoader` init to improve performance.
+  rank_zero_warn(
+srun: Job step aborted: Waiting up to 32 seconds for job step to finish.
+slurmstepd: error: *** JOB 28603860 ON node114 CANCELLED AT 2022-12-07T10:29:50 ***
+slurmstepd: error: *** STEP 28603860.0 ON node114 CANCELLED AT 2022-12-07T10:29:50 ***

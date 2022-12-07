@@ -1,0 +1,57 @@
+# Dataset parameters
+audio_dir: /om2/user/gelbanna/datasets/LibriSpeech/LibriSpeech/
+num_trials: 200000
+
+# Encoder parameters
+encoder_name: Log-Mel-Spectrogram
+encoder_weights: ''
+pooling: mean+max
+
+# Input to decoder parameters
+aggregation: sum
+
+# Decoder parameters
+decoder_name: MLP
+## MLP
+initial_size: 128
+hidden_size: 4096
+proj_size: 256
+use_bn: False
+## LSTM
+
+# Training parameters
+seed: 42
+bs: 128
+lr: 0.001
+epochs: 100
+gpus: 2
+num_workers: 2
+
+# Weight pathname for resuming training
+resume: 
+# Folder to store trained weight files
+checkpoint_folder: checkpoints
+
+
+# LIST OF ENCODERS TO USE WITH THEIR WEIGHTS
+
+# 'Log-Mel-Spectrogram': '',
+# 'Cochleagram': '',
+# 'openSMILE_eGeMAPS': '',
+# 'openSMILE_ComParE': '',
+# 'BYOL-A_default': '../byol-stuff/byola_checkpoints/byola/AudioNTT2020-BYOLA-64x96d2048.pth',
+# 'BYOL-S_default': '../serab-byols/checkpoints/default2048_BYOLAs64x96-2105311814-e100-bs256-lr0003-rs42.pth',
+# 'BYOL-I_default': '../byol-stuff/byol-a/checkpoints/BYOLI++-NTT2020d2048s64x96-voxceleb1&2-e100-bs256-lr0003-rs42.pth',
+# 'BYOL-S_cvt': '../byol-stuff/byola_checkpoints/byols_encoders/cvt_s1-d1-e64_s2-d1-e256_s3-d1-e512_BYOLAs64x96-2107301623-e100-bs256-lr0003-rs42.pth',
+# 'Hybrid_BYOL-S_cvt': '../serab-byols/checkpoints/cvt_s1-d1-e64_s2-d1-e256_s3-d1-e512_BYOLAs64x96-osandbyolaloss6373-e100-bs256-lr0003-rs42.pth',
+# 'TERA': '',
+# 'APC': '',
+# 'Wav2Vec2_latent': 'facebook/wav2vec2-large-960h-lv60-self',
+# # 'Wav2Vec2_best': 'facebook/wav2vec2-large-960h-lv60-self',
+# 'Wav2Vec2': 'facebook/wav2vec2-large-960h-lv60-self',
+# 'HuBERT_latent': 'facebook/hubert-xlarge-ll60k',
+# # 'HuBERT_best': 'facebook/hubert-xlarge-ll60k',
+# 'HuBERT': 'facebook/hubert-xlarge-ll60k',
+# 'Data2Vec_latent': 'facebook/data2vec-audio-large-960h',
+# # 'Data2Vec_best': 'facebook/data2vec-audio-large-960h',
+# 'Data2Vec': 'facebook/data2vec-audio-large-960h',

@@ -11,7 +11,10 @@ from collections import Counter
 from pylab import cm
 import seaborn as sns
 import matplotlib as mpl
+import plotly.express as px
+import plotly.offline as py
 import matplotlib.pyplot as plt
+from plotly.subplots import make_subplots
 
 import yaml
 from pathlib import Path
@@ -101,6 +104,14 @@ def int_to_float_audio(audio):
         float_audio = audio
     return float_audio
 
+def normalize_loudness(audio, sr, target_loudness):
+    # measure the loudness first 
+    meter = pyln.Meter(sr) # create BS.1770 meter
+    orig_loudness = meter.integrated_loudness(audio)
+    # loudness normalize audio to target dB
+    loudness_normalized_audio = pyln.normalize.loudness(audio, orig_loudness, target_loudness)
+    return loudness_normalized_audio
+
 def resample_audio(audio, orig_sr, req_sr):
     """Resample audio signal from original sampling rate (orig_sr) to required sampling rate (req_sr) using librosa package"""
     return librosa.core.resample(
@@ -179,7 +190,7 @@ def preprocess_audio_files(files_paths, speaker_ids, chunk_dur=3, resampling_rat
     audio_path = f'{save_path}/*/*.{audio_format}'
     return audio_path
 
-def load_dataset(files, cfg, speaker_ids=[], audio_format='wav', device='cuda'):
+def load_dataset(files, cfg, speaker_ids=[], audio_format='wav', norm_loudness=True, target_loudness=-23, device='cuda'):
     """Load audio dataset and read the audio files as list of torch tensors.
 
     Parameters
@@ -212,6 +223,12 @@ def load_dataset(files, cfg, speaker_ids=[], audio_format='wav', device='cuda'):
             if audio.ndim == 2:
                 audio = np.mean(audio, axis=1)
             audio_len = audio.shape[0]
+            
+            # Normalize audio loudness to target level
+            if norm_loudness:
+                audio = normalize_loudness(audio, orig_sr, target_loudness)
+                file_name = file.split('.')[0]
+                sf.write(f'{file_name}_normloud.wav', audio, orig_sr)
 
             # Convert to float if necessary
             if np.issubdtype(audio.dtype, np.integer):
@@ -220,7 +237,7 @@ def load_dataset(files, cfg, speaker_ids=[], audio_format='wav', device='cuda'):
                 float_audio = np.float32(audio)
             else:
                 float_audio = audio
-
+                
             # Resample if needed
             if orig_sr != cfg.resampling_rate:
                 float_audio = librosa.core.resample(
@@ -229,6 +246,7 @@ def load_dataset(files, cfg, speaker_ids=[], audio_format='wav', device='cuda'):
                     target_sr=cfg.resampling_rate,
                     res_type='kaiser_best'
                 )
+            
             audio_tensor_list.append(torch.from_numpy(float_audio))
         with open(audio_tensor_file, 'wb') as f:
             pickle.dump(audio_tensor_list, f)

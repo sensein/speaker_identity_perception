@@ -60,8 +60,9 @@ class ReducerTuner():
             raise AttributeError(f'This reducer {name} is not included...')
 
     def fit_eval(self, embeddings, reducer):
-        reduced_embeddings = reducer.fit_transform(StandardScaler().fit_transform(embeddings))
-        local_val, global_val = self.embedding_quality(embeddings, reduced_embeddings, knn=self.knn, subsetsize=self.subsetsize)
+        stand_embeddings = StandardScaler().fit_transform(embeddings)
+        reduced_embeddings = reducer.fit_transform(stand_embeddings)
+        local_val, global_val = self.embedding_quality(stand_embeddings, reduced_embeddings, knn=self.knn, subsetsize=self.subsetsize)
         return reduced_embeddings, local_val, global_val
     
     def save_results_pandas(self, reducers_embeddings_dict, metadata=None, model_name=None, dataset_name=None):
@@ -94,7 +95,11 @@ class ReducerTuner():
                 params_iterator = list(ParameterGrid(reducer_params))
                 all_embeddings = []; local_metrics = []; global_metrics = []
                 for params in params_iterator:
-                    reducer = reducer_object(n_components=2, random_state=42, **params)
+                    reducer = reducer_object(n_components=3, random_state=42, **params)
+                    try:
+                        reduced_embeddings, local_metric, global_metric = self.fit_eval(embeddings, reducer)
+                    except:
+                        reduced_embeddings, local_metric, global_metric = self.fit_eval(embeddings, reducer)
                     reduced_embeddings, local_metric, global_metric = self.fit_eval(embeddings, reducer)
                     all_embeddings.append(reduced_embeddings); local_metrics.append(local_metric); global_metrics.append(global_metric)
                 max_local_idx = np.argmax(local_metrics)
