@@ -7,10 +7,12 @@ from glob import glob
 from tqdm import tqdm
 
 import torch
+import s3prl.hub as s3hub
 import librosa
 import torchaudio
 import torch.nn as nn
 import torchaudio.transforms as T
+
 from transformers import Wav2Vec2Model, HubertModel, Data2VecAudioModel
 
 
@@ -56,20 +58,18 @@ class Encoder(nn.Module):
     def generate_speech_embeddings(self, audio_tensor, model, model_name):
         # Generate speech embeddings
         if 'BYOL-' in model_name:
-            embeddings = serab_byols.get_scene_embeddings(audio_tensor_list, model)
+            embeddings = serab_byols.get_scene_embeddings(audio_tensor, model)
 
         elif model_name == 'TERA' or model_name == 'APC':
             with torch.no_grad():
-                embedding = model(audio.to('cuda').unsqueeze(0))["last_hidden_state"]
-                embedding = embedding.mean(1) + embedding.amax(1)
+                embedding = model(audio_tensor)["last_hidden_state"]
 
         elif model_name == 'Log-Mel-Spectrogram':
             mel_spec = model(audio_tensor)
             embedding = (mel_spec + torch.finfo().eps).log().squeeze(0)
-            embedding = embedding.mean(1) + embedding.amax(1)
         
         elif model_name == 'Cochleagram':
-            coch = model(audio.cpu().detach().numpy(), cfg.resampling_rate, strict=False, n=40)
+            coch = model(audio_tensor.cpu().detach().numpy(), cfg.resampling_rate, strict=False, n=40)
             embedding = (torch.from_numpy(coch) + torch.finfo().eps).log().squeeze(0)
             
         else:
@@ -86,10 +86,10 @@ class Encoder(nn.Module):
                 if 'latent' in model_name:
                     if 'HuBERT' in model_name:
                         model.feature_extractor.register_forward_hook(get_activation('latent_features'))
-                        _ = model(audio_tensor.to('cuda').unsqueeze(0))
+                        _ = model(audio_tensor)
                         embedding = activation['latent_features'].permute(0,2,1)
                     else:
-                        embedding = model(audio_tensor.to('cuda').unsqueeze(0)).extract_features
+                        embedding = model(audio_tensor).extract_features
                 elif 'best' in model_name:
                     if 'HuBERT' in model_name:
                         num = 6
@@ -101,8 +101,7 @@ class Encoder(nn.Module):
                     _ = model(audio_tensor)
                     embedding = activation[f'{model_name}_encoder']
                 else:
-                    embedding = model(audio_tensor.to('cuda').unsqueeze(0)).last_hidden_state
-
+                    embedding = model(audio_tensor).last_hidden_state
         return embedding
 
     def forward(self, audio_tensor):

@@ -1,10 +1,15 @@
+import os
 import fire
 import pandas as pd
 from glob import glob
 import multiprocessing
 import pytorch_lightning as pl
+from pytorch_lightning.callbacks import EarlyStopping
+from pytorch_lightning.strategies.ddp import DDPStrategy
 
+from callbacks import MyPrintingCallback
 from decoders.mlp import MLP
+from clf import Clf
 from learner import Learner
 from dataset import DFInEmbeddingsOutDataset
 from common import (os, sys, np, Path, random, torch, nn, DataLoader,
@@ -32,28 +37,65 @@ def main(audio_dir=None, config_path='config.yaml', encoder_name=None, encoder_w
 
     # Data Preparation
     ## Read audio files
-    files = glob(f'{cfg.audio_dir}train*/*/*/*.flac')
+    files = glob(f'{cfg.audio_dir}*/*/*/*.flac')
     ## Build a dataframe for audio files and metadata
     df = pd.DataFrame({'AudioPath': files})
     df['ID'] = np.array(list(map(lambda x: x.split('/')[-3], files)))
+    df['Set'] = np.array(list(map(lambda x: x.split('/')[-4].split('-')[0], files)))
     speaker_df = pd.read_csv('/om2/user/gelbanna/datasets/LibriSpeech/LibriSpeech/SPEAKERS.TXT', delimiter='|')
     speaker_df.ID = speaker_df.ID.astype(str)
     df = df.merge(speaker_df, on='ID', how='left')
 
+    ## Splitting dataframe to train, val and test
+    train_df = df.loc[df.Set == 'train']
+    val_df = df.loc[df.Set == 'dev']
+    test_df = df.loc[df.Set == 'test']
+
     ## Define a torch Dataset Class takes in DF and jets encoder embeddings
-    ds = DFInEmbeddingsOutDataset(df, cfg.encoder_name,
-                            cfg.encoder_weights,
-                            cfg.num_trials, device)
+    train_ds = DFInEmbeddingsOutDataset(train_df,
+                                cfg.encoder_name,
+                                cfg.precomputed_features_path,
+                                cfg.pooling,
+                                'train',
+                                cfg.num_trials, device)
+    val_ds = DFInEmbeddingsOutDataset(val_df,
+                                cfg.encoder_name,
+                                cfg.precomputed_features_path,
+                                cfg.pooling,
+                                'dev',
+                                50000, device)
+    test_ds = DFInEmbeddingsOutDataset(test_df,
+                                cfg.encoder_name,
+                                cfg.precomputed_features_path,
+                                cfg.pooling,
+                                'test',
+                                50000, device)
 
-    ## Define dataloader for training
-    torch.multiprocessing.set_start_method('spawn')
-    dl = DataLoader(ds, 
+    ## Define dataloader for training, validation and testing
+    train_dl = DataLoader(train_ds, 
                 batch_size=cfg.bs,
-                num_workers=cfg.num_workers, 
+                num_workers=cfg.num_workers,
+                # multiprocessing.cpu_count(),
+                persistent_workers=True,
+                pin_memory=True,
                 shuffle=True)
+    val_dl = DataLoader(val_ds, 
+                batch_size=cfg.bs,
+                num_workers=cfg.num_workers,
+                persistent_workers=True,
+                pin_memory=False,
+                shuffle=False)
+    test_dl = DataLoader(test_ds, 
+                batch_size=cfg.bs,
+                num_workers=cfg.num_workers,
+                persistent_workers=True,
+                pin_memory=False,
+                shuffle=False)
 
-    logger.info(f'Dataset: {len(files)} .wav files from {cfg.audio_dir}')
-    logger.info(f'Number of Speakers: {df.ID.unique().shape[0]}')
+    logger.info(f'Number of CPUs: {os.cpu_count()}')
+    logger.info(f'Training Dataset: {len(train_df)} .wav files from {train_df.ID.unique().shape[0]} speakers.')
+    logger.info(f'Validation Dataset: {len(val_df)} .wav files from {val_df.ID.unique().shape[0]} speakers.')
+    logger.info(f'Testing Dataset: {len(test_df)} .wav files from {test_df.ID.unique().shape[0]} speakers.')
 
     # Decoder Model
     if cfg.decoder_name == 'MLP':
@@ -67,19 +109,26 @@ def main(audio_dir=None, config_path='config.yaml', encoder_name=None, encoder_w
     if cfg.resume is not None:
         decoder.load_weight(cfg.resume)
 
-    name = (f'ASpD-{cfg.encoder_name}-{decoder_name}'
-            f'-e{cfg.epochs}-bs{cfg.bs}-lr{str(cfg.lr)[2:]}'
+    # Classifier Model
+    clf = Clf(cfg.proj_size)
+
+    name = (f'ASpD-{2*cfg.num_trials}samples-{cfg.encoder_name}-{decoder_name}'
+            f'aggregation{cfg.aggregation}'
+            f'-e{cfg.epochs}-bs{cfg.bs}-optim{cfg.optim}-lr{str(cfg.lr)[2:]}'
             f'-rs{cfg.seed}')
     logger.info(f'Training {name}...')
 
-    # dataiter = iter(dl)
-    # data = next(dataiter)
-    # print(len(data), data[0].shape)
-
     # Training Preparation
-    learner = Learner(decoder, cfg.lr, cfg.aggregation)
-    trainer = pl.Trainer(accelerator='gpu', devices=cfg.gpus, max_epochs=cfg.epochs)
-    trainer.fit(learner, dl)
+    early_stopping = EarlyStopping('val_loss', min_delta=0.001, patience=10)
+    learner = Learner(decoder, clf, cfg.lr, cfg.optim, cfg.aggregation)
+    trainer = pl.Trainer(accelerator='gpu', 
+                        devices=cfg.gpus, 
+                        max_epochs=cfg.epochs,
+                        callbacks=[early_stopping],
+                        strategy=DDPStrategy(find_unused_parameters=False),
+                        num_nodes=4,
+                        profiler="simple")
+    trainer.fit(learner, train_dl, val_dl)
 
     if trainer.interrupted:
         logger.info('Terminated.')
@@ -88,8 +137,12 @@ def main(audio_dir=None, config_path='config.yaml', encoder_name=None, encoder_w
     # Saving trained weight.
     to_file = Path(cfg.checkpoint_folder)/(name+'.pth')
     to_file.parent.mkdir(exist_ok=True, parents=True)
-    torch.save(model.state_dict(), to_file)
+    torch.save(decoder.state_dict(), to_file)
     logger.info(f'Saved weight as {to_file}')
+
+    # Evaluating model's performance using the best checkpoint
+    logger.info('Testing Model Performance on unseen data')
+    trainer.test(dataloaders=test_dl, ckpt_path="best", device=1, num_nodes=1)
 
 if __name__ == '__main__':
     fire.Fire(main)

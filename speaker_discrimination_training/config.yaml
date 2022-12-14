@@ -1,31 +1,34 @@
 # Dataset parameters
 audio_dir: /om2/user/gelbanna/datasets/LibriSpeech/LibriSpeech/
-num_trials: 200000
+num_trials: 1000000
 
 # Encoder parameters
-encoder_name: Log-Mel-Spectrogram
-encoder_weights: ''
+encoder_name: TERA
+encoder_weights:
 pooling: mean+max
+precomputed_features_path: /om2/scratch/Wed/gelbanna
 
 # Input to decoder parameters
 aggregation: sum
 
 # Decoder parameters
 decoder_name: MLP
-## MLP
-initial_size: 128
+## MLP parameters
+initial_size: 768
 hidden_size: 4096
 proj_size: 256
-use_bn: False
-## LSTM
+use_bn: True
+## LSTM parameters
 
 # Training parameters
 seed: 42
+device: cuda
 bs: 128
 lr: 0.001
+optim: Adam
 epochs: 100
-gpus: 2
-num_workers: 2
+gpus: 4
+num_workers: 100
 
 # Weight pathname for resuming training
 resume: 
