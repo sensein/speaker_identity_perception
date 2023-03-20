@@ -6,3 +6,4 @@ This directory includes:
 2. *encoding_models.py*: Implement and Fit a Ridge Regression model to predict grayordinate values from models' audio embeddings.
 3. *utils.py*: Helper functions for running the encoding models.
 4. *encoding_model_job.sh*: Bash file to run encoding model jobs on slurm.
+5. *fmri38.yml*: Conda environment used for this chapter in the project.
