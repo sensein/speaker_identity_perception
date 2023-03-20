@@ -1,39 +1,51 @@
 # Dataset parameters
-audio_dir: /om2/user/gelbanna/datasets/LibriSpeech/LibriSpeech/
-num_trials: 1000000
+audio_dir: /om2/scratch/Tue/gelbanna/aspd/chuncked_3sec/
+num_trials: 500000
 
 # Encoder parameters
 encoder_name: TERA
-encoder_weights:
-pooling: mean+max
-precomputed_features_path: /om2/scratch/Wed/gelbanna
+encoder_weights: 
+# ../../serab-byols/checkpoints/cvt_s1-d1-e64_s2-d1-e256_s3-d1-e512_BYOLAs64x96-osandbyolaloss6373-e100-bs256-lr0003-rs42.pth
+pooling:
+precomputed_features_path: /om2/scratch/Tue/gelbanna/aspd
 
 # Input to decoder parameters
-aggregation: sum
+aggregation: concat
 
 # Decoder parameters
 decoder_name: MLP
 ## MLP parameters
 initial_size: 768
-hidden_size: 4096
-proj_size: 256
+# 768
+layers: [2048]
 use_bn: True
 ## LSTM parameters
+hidden_layers: [4096]
+bidirectional: True
 
 # Training parameters
 seed: 42
 device: cuda
-bs: 128
-lr: 0.001
+batch_size: 64
+lr: 0.0001
 optim: Adam
 epochs: 100
+patience: 3
 gpus: 4
-num_workers: 100
+num_nodes: 4
+num_workers: 64
 
-# Weight pathname for resuming training
-resume: 
+# Tune hyperparameters
+tune_hyperparams: True
+num_samples: 1
+ray_output_dir: /om2/user/gelbanna/ray_results
+
+# Fine-tuning trained model
+finetune: False
+resume:
+checkpoint: /om2/user/gelbanna/training_checkpoints/ASpD-1000000samples-TERA-MLP_1536_1layers_4096-aggregationconcat-e100-lr0.0001-bs64-optimAdam-rs42-best19-val_loss0.38.ckpt
 # Folder to store trained weight files
-checkpoint_folder: checkpoints
+checkpoint_folder: /om2/user/gelbanna/training_checkpoints/
 
 
 # LIST OF ENCODERS TO USE WITH THEIR WEIGHTS
@@ -50,11 +62,19 @@ checkpoint_folder: checkpoints
 # 'TERA': '',
 # 'APC': '',
 # 'Wav2Vec2_latent': 'facebook/wav2vec2-large-960h-lv60-self',
-# # 'Wav2Vec2_best': 'facebook/wav2vec2-large-960h-lv60-self',
+# 'Wav2Vec2_best': 'facebook/wav2vec2-large-960h-lv60-self',
 # 'Wav2Vec2': 'facebook/wav2vec2-large-960h-lv60-self',
 # 'HuBERT_latent': 'facebook/hubert-xlarge-ll60k',
-# # 'HuBERT_best': 'facebook/hubert-xlarge-ll60k',
+# 'HuBERT_best': 'facebook/hubert-xlarge-ll60k',
 # 'HuBERT': 'facebook/hubert-xlarge-ll60k',
 # 'Data2Vec_latent': 'facebook/data2vec-audio-large-960h',
-# # 'Data2Vec_best': 'facebook/data2vec-audio-large-960h',
+# 'Data2Vec_best': 'facebook/data2vec-audio-large-960h',
 # 'Data2Vec': 'facebook/data2vec-audio-large-960h',
+
+
+# Testing parameters
+test_data: stimuli
+test_data_csv: /om2/user/gelbanna/pilot_stimuli/pilot_stimuli.csv
+test_bs: 100
+test_workers: 16
+pretrained_checkpoint: /om2/user/gelbanna/training_checkpoints/ASpD-1000000samples-TERA-MLP_1536_1layers_512-aggregationconcat-e100-lr0.0001-bs128-optimAdam-rs42-best13-val_loss0.40.ckpt

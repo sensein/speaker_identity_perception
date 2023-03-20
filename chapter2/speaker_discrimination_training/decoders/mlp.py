@@ -4,23 +4,30 @@
 from torch import nn
 
 class MLP(nn.Module):
-    def __init__(self, dim, projection_size, hidden_size=4096, use_bn=True):
-        super().__init__()
+    def __init__(self, input_size, layers_sizes):
+        super(MLP, self).__init__()
 
-        self.net = nn.Sequential(
-            nn.Linear(dim, hidden_size),
-            nn.BatchNorm1d(hidden_size),
-            nn.ReLU(inplace=True),
-            nn.Linear(hidden_size, projection_size)
-        )
+        self.layers = nn.ModuleList()
+        for size in layers_sizes:
+            self.layers.append(nn.Linear(input_size, size))
+            input_size = size
+            self.layers.append(nn.ReLU(inplace=True))
+
+        self.layers.append(nn.Linear(size, 1))
 
     def forward(self, x):
-        return self.net(x)
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
 
 
 if __name__ == '__main__':
     import torch
-    model = MLP(1280, 256, 4096)
+    input_size = 1280
+    layers_sizes = [4096, 256, 256, 128, 64]
+    model = MLP(input_size, layers_sizes)
     x = torch.randn(128, 1, 1280)
     # Let's print it
-    model(x)
+    output = model(x)
+    print(output.shape)

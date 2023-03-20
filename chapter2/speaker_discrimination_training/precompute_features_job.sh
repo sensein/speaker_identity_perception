@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=tera_dev
+#SBATCH --job-name=tera_vctk
 #SBATCH --output=/om2/user/gelbanna/job_logs/job_%j.out
 #SBATCH --error=/om2/user/gelbanna/job_logs/job_%j.err
 #SBATCH --mem=90Gb

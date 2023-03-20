@@ -13,6 +13,8 @@ import torchaudio
 import torch.nn as nn
 import torchaudio.transforms as T
 
+import serab_byols
+
 from transformers import Wav2Vec2Model, HubertModel, Data2VecAudioModel
 
 
@@ -58,7 +60,7 @@ class Encoder(nn.Module):
     def generate_speech_embeddings(self, audio_tensor, model, model_name):
         # Generate speech embeddings
         if 'BYOL-' in model_name:
-            embeddings = serab_byols.get_scene_embeddings(audio_tensor, model)
+            embedding = serab_byols.get_scene_embeddings(audio_tensor, model)
 
         elif model_name == 'TERA' or model_name == 'APC':
             with torch.no_grad():

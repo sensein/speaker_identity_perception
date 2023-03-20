@@ -1,4 +1,4 @@
-"""BYOL for Audio: Common definitions and utilities."""
+"""Common definitions and utilities."""
 
 import os
 import sys

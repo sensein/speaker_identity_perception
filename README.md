@@ -1,5 +1,5 @@
 # Evaluating Speaker Identity Coding in Self-supervised Models (SSMs) and Humans
-## Masters Project *done by: Gasser Elbanna*
+## Masters Project *Done by: Gasser Elbanna*
 ## Supervisor: Satrajit S. Ghosh
 ## EPFL Advisor: Antoine Bosselut
 
@@ -28,4 +28,4 @@ Taking a step further, in this chapter, we aim to investigate the correspondence
    * *Where is the information content of speech models best represented in the brain?*
 
 
-Further details regarding the code scripts are provided in each chapter directory.
+Further details regarding the code scripts are provided in the directory of each chapter.
