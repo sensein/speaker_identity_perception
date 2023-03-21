@@ -5,12 +5,13 @@
    4. *reducer_tuner.py*: Run multiple dimensionality reduction algorithms with hyperparameter tuning.
    5. *representation_similarity.py*: compute CKA scores across all representations.
    6. *settings.py*: Preset hyperparameters for models, classifiers, and reducers.
-   7. *voxceleb_utils.py*: Helper fuctions for VoxCeleb Benchmark.
-   8. *config.yaml*: Preset parameters for experiments.
+   
+2. *config.yaml*: Preset parameters for experiments.
 
-2. *VoxCeleb/TIMIT Benchmark*: code used to benchmark SSMs and handcrafted representations on an automatic speaker recognition (ASpR).
+3. *Benchmark*: code used to benchmark SSMs and handcrafted representations on an automatic speaker recognition (ASpR) task (VoxCeleb/TIMIT)
    1. *XX_benchmark.py*: Benchmarking performance of models on dataset *XX* (VoxCeleb/TIMIT).
    2. *XX_layer_analysis.py*: Benchmarking performance of layers within models on dataset *XX* (VoxCeleb/TIMIT).
-   3. *voxceleb_subset_analysis.py*: Benchmarking performance of models on subset of speakers of VoxCeleb.
+   3. *voxceleb_subset_analysis.py*: Benchmarking performance of models on subsets of speakers of VoxCeleb.
+   4. *voxceleb_utils.py*: Helper fuctions for VoxCeleb Benchmark.
 
-3. All speech experiments were executed using *deciphering enigma* package. Please find all speech experiements in this [Jupyter Book](https://gasserelbanna.github.io/vocal-identity-jupyter-book/).
+4. All speech experiments were executed using *deciphering enigma* package. Please find all speech experiements in this [Jupyter Book](https://gasserelbanna.github.io/vocal-identity-jupyter-book/5_chapter1/datasets_experiments.html).

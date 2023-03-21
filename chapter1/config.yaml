@@ -1,0 +1,50 @@
+# Dataset Parameters
+dataset_name: voxceleb_1
+# behavioral_experiment
+# experiments/pitchshift_up_vctk_speech
+# experiments/clearvsbabblingbkg_vctk_speech
+# experiments/reverse_vctk_speech
+# anonymized_voice_experiment
+# vctk_umap_experiment
+# experiments/emotion_subesco_speech
+# experiments/bilingual_spice_speech_3sec
+# experiments/scriptvsspon_speech_3sec
+# sweeping_pitch_experiment
+# reverse_vctk
+dataset_path: /om2/user/gelbanna/datasets/VoxCeleb1/wav/*/*/*.wav
+# /om2/user/gelbanna/datasets/clearvsbabblingbkg_vctk/*/*/*.wav
+# /om2/user/gelbanna/datasets/LibriSpeech/LibriSpeech/test-*/*/*/*noise.flac
+# /om2/user/gelbanna/datasets/SUBESCO/*.wav
+# /om2/user/gelbanna/datasets/bilingual_dataset/preprocessed_audios_dur3sec/*/*.wav
+# /om2/user/gelbanna/datasets/scripted_spont_dataset/preprocessed_audios_dur3sec/*/*.wav
+# /om2/user/gelbanna/datasets/SweepingVowels/*/*.wav
+# /om2/user/gelbanna/datasets/LibriSpeech/LibriSpeech/*/*/*/*.flac
+# /om2/user/gelbanna/datasets/VoxCeleb1/wav/*/*/*.wav
+# /om2/user/gelbanna/datasets/VCTK/wav48_silence_trimmed/*/*normloud.wav
+# /om2/user/gelbanna/datasets/TIMIT/*/*/*/*.wav
+meta_data_separate: False #or add file path (e.g. csv file)
+#TODO: Add a way to navigate labels based on directory tree
+name_convention: ID_xx.wav
+# Gender_xx_ID_xx_Scentence_Label_xx.wav
+# ID_Gender_Task_Label_xx.wav
+# ID_xx_xx_Label_xx.wav
+resampling_rate: 16000
+norm_loudness: False
+target_loudness: -23 #dB
+preprocess_data: False #means chunking audios for now
+chunk_dur: 3 #sec
+balance_label: Label #item from name convention to be balanced per speaker
+
+# Feature Extractor Parameters
+# List of models predefined in the code: BYOL-A, BYOL-S variants, YAMNet, VGGish, TRILL, wav2vec2 and HuBERT
+
+# High Dimension Analysis Parameters
+#examples: cosine, euclidean and hausdorff
+dist_metrics: cosine
+
+# Dimensionality Reduction Parameters
+apply_dim_reduction: True # methods: PCA, tSNE, UMAP & PaCMAP
+
+# Voice Augmentation Parameters
+
+# Representation Method Parameters
